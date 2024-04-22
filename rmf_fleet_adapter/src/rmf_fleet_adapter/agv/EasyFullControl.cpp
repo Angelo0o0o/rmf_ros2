@@ -1149,6 +1149,7 @@ void EasyCommandHandle::follow_new_path(
     i0 = waypoints.size() - 2;
   }
 
+  std::vector<rmf_traffic::agv::Graph::LiftPropertiesPtr> lift_tracker;
   std::size_t i1 = i0 + 1;
   while (i1 < waypoints.size())
   {
@@ -1246,6 +1247,7 @@ void EasyCommandHandle::follow_new_path(
         }
       }
     }
+    lift_tracker.push_back(in_lift);
 
     const auto command_position = to_robot_coordinates(map, target_position);
     auto destination = EasyFullControl::Destination::Implementation::make(
@@ -1285,6 +1287,59 @@ void EasyCommandHandle::follow_new_path(
 
     i0 = target_index;
     i1 = i0 + 1;
+  }
+
+  // Check if lift tracker size and queue size are the same
+  if (lift_tracker.size() != queue.size())
+  {
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "----- Lift tracker size and queue size for robot [%s] are different!",
+      context->requester_id().c_str());
+  }
+  else if (lift_tracker.size() <= 1)
+  {
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "----- Lift tracker size for robot [%s] is [%d]!",
+      context->requester_id().c_str(),
+      lift_tracker.size());
+  }
+  else
+  {
+    if (lift_tracker.front() and !lift_tracker.back())
+    {
+      // If the new path is a replan for the robot to exit lift while inside the
+      // lift, we want to remove the first X consecutive waypoints inside the lift
+      // to avoid unnecessary moving and turning before heading out.
+      std::size_t outside_lift_idx = 0;
+      for (std::size_t i = 0; i < lift_tracker.size(); ++i)
+      {
+        if (!lift_tracker[i])
+        {
+          outside_lift_idx = i;
+          break;
+        }
+      }
+      RCLCPP_INFO(
+        context->node()->get_logger(),
+        "Removing first %d waypoints of path provided as they are lift replan "
+        "waypoints while robot [%s] is inside the lift.",
+        outside_lift_idx,
+        context->requester_id().c_str());
+      // Remove all points before first waypoint outside lift
+      queue.erase(queue.begin(), queue.begin() + outside_lift_idx);
+      lift_tracker.erase(
+        lift_tracker.begin(), lift_tracker.begin() + outside_lift_idx);
+    }
+  }
+
+  // Sanity check: print all queue
+  for (std::size_t i = 0; i < queue.size(); ++i)
+  {
+    std::cout << " - - - - - - - - [" << context->requester_id()
+              << "] index [" << i << "] inside lift: " << lift_tracker[i]
+              << std::endl;
   }
 
   this->current_progress = ProgressTracker::make(
