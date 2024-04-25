@@ -16,6 +16,7 @@
 */
 
 #include "internal_RobotUpdateHandle.hpp"
+#include "../TaskManager.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -1009,8 +1010,25 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 //==============================================================================
 void RobotContext::set_commission(RobotUpdateHandle::Commission value)
 {
-  std::lock_guard<std::mutex> lock(*_commission_mutex);
-  _commission = std::move(value);
+  {
+    std::lock_guard<std::mutex> lock(*_commission_mutex);
+    _commission = std::move(value);
+  }
+
+  if (const auto mgr = _task_manager.lock())
+  {
+    if (!_commission.is_performing_idle_behavior())
+    {
+      mgr->_cancel_idle_behavior({"decommissioned"});
+    }
+    else
+    {
+      // We trigger this in case the robot needs to begin its idle behavior.
+      // If it shouldn't perform idle behavior for any reason (e.g. already
+      // performing a task), then this will have no effect.
+      mgr->_begin_next_task();
+    }
+  }
 }
 
 //==============================================================================
@@ -1113,6 +1131,13 @@ const std::unordered_map<std::string, TimeMsg>&
 RobotContext::locked_mutex_groups() const
 {
   return _locked_mutex_groups;
+}
+
+//==============================================================================
+const std::unordered_map<std::string, TimeMsg>&
+RobotContext::requesting_mutex_groups() const
+{
+  return _requesting_mutex_groups;
 }
 
 //==============================================================================
@@ -1568,6 +1593,7 @@ void RobotContext::_check_mutex_groups(
   }
 }
 
+//==============================================================================
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
   std::unordered_map<std::string, TimeMsg>& groups)
@@ -1667,6 +1693,30 @@ void RobotContext::_publish_mutex_group_requests()
   {
     publish(MutexGroupData{name, time});
   }
+}
+
+//==============================================================================
+void RobotContext::_handle_mutex_group_manual_release(
+  const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg)
+{
+  if (msg.fleet != group())
+    return;
+
+  if (msg.robot != name())
+    return;
+
+  std::unordered_set<std::string> retain;
+  for (const auto& g : _locked_mutex_groups)
+  {
+    retain.insert(g.first);
+  }
+
+  for (const auto& g : msg.release_mutex_groups)
+  {
+    retain.erase(g);
+  }
+
+  retain_mutex_groups(retain);
 }
 
 } // namespace agv

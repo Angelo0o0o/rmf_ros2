@@ -162,16 +162,6 @@ TaskManagerPtr TaskManager::make(
       }
     });
 
-  mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [w = mgr->weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-
   mgr->_begin_waiting();
 
   // TODO(MXG): The tests allow a task manager to be created before a task
@@ -1367,6 +1357,15 @@ bool TaskManager::kill_task(
 }
 
 //==============================================================================
+void TaskManager::_cancel_idle_behavior(std::vector<std::string> labels)
+{
+  if (_waiting)
+  {
+    _waiting.cancel(std::move(labels), _context->now());
+  }
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
@@ -1383,7 +1382,6 @@ void TaskManager::_begin_next_task()
 
   if (_queue.empty() && _direct_queue.empty())
   {
-
     if (!_waiting && !_finished_waiting)
     {
       _begin_waiting();
@@ -1480,7 +1478,9 @@ void TaskManager::_begin_next_task()
   else
   {
     if (!_waiting && !_finished_waiting)
+    {
       _begin_waiting();
+    }
   }
 
   _context->worker().schedule(
@@ -1740,7 +1740,16 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           if (!self)
             return;
 
-          self->_finished_waiting = true;
+          // This condition deals with an awkward edge case where idle behavior
+          // would not restart when toggling the idle behavior commission back
+          // on. We fix this by keeping the _finished_waiting flag clean if
+          // idle behavior commissioning is off, so there's nothing to block
+          // idle behavior from beginning again if it gets toggled back on.
+          if (self->_context->commission().is_performing_idle_behavior())
+          {
+            self->_finished_waiting = true;
+          }
+
           self->_waiting = ActiveTask();
           self->_begin_next_task();
 
@@ -1750,6 +1759,41 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           }
         });
     };
+}
+
+//==============================================================================
+void TaskManager::configure_retreat_to_charger(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "[TaskManager::configure_retreat_to_charger] "
+      "Invalid value for duration: %f",
+      rmf_traffic::time::to_seconds(*duration));
+  }
+
+  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
+  {
+    if (_retreat_timer && !_retreat_timer->is_canceled())
+    {
+      _retreat_timer->cancel();
+    }
+    return;
+  }
+
+  if (_retreat_timer)
+    _retreat_timer->reset();
+  _retreat_timer = _context->node()->try_create_wall_timer(
+    duration.value(),
+    [w = weak_from_this()]()
+    {
+      if (auto mgr = w.lock())
+      {
+        mgr->retreat_to_charger();
+      }
+    });
 }
 
 //==============================================================================
