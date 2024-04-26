@@ -18,6 +18,7 @@
 #ifndef RMF_FLEET_ADAPTER__STANDARDNAMES_HPP
 #define RMF_FLEET_ADAPTER__STANDARDNAMES_HPP
 
+#include <cstdint>
 #include <string>
 
 namespace rmf_fleet_adapter {
@@ -72,6 +73,8 @@ const std::string ChargingAssignmentsTopicName = "charging_assignments";
 
 const std::string MutexGroupRequestTopicName = "mutex_group_request";
 const std::string MutexGroupStatesTopicName = "mutex_group_states";
+const std::string MutexGroupManualReleaseTopicName =
+  "mutex_group_manual_release";
 
 const std::string ReservationRequestTopicName = "/rmf/reservations/request";
 const std::string ReservationResponseTopicName = "/rmf/reservations/tickets";
