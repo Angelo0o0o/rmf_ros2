@@ -41,8 +41,8 @@ void check_path_finish(
         node->get_logger(),
         "Robot named [%s] belonging to fleet [%s] is very far [%fm] from where "
         "it is supposed to be, but its remaining path is empty. This means the "
-        "robot believes it is finished, but it is not where it's supposed to be.",
-        info.robot_name.c_str(), info.fleet_name.c_str(), dist);
+        "robot believes it is finished, but it is not where it's supposed to be. POSITION X =  [%f]   POSITION Y = [%f]    POSITION WX =  [%f]   POSITION WY = [%f]",
+        info.robot_name.c_str(), info.fleet_name.c_str(), dist,l.x,l.y,wp.position()(0),wp.position()(1));
       estimate_state(node, state.location, info);
       return;
     }

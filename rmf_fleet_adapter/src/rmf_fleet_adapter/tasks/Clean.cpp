@@ -223,6 +223,7 @@ void add_clean(
   deserialization.consider_clean =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
 
+  std::cout << "                            1\n";
   auto deserialize_clean =
     [
     dock_params,
@@ -233,18 +234,21 @@ void add_clean(
     {
       if (!consider || !(*consider))
       {
+        std::cout << "                            2\n";
         /* *INDENT-OFF* */
         return {
           nullptr,
           {"Not accepting cleaning tasks"}
         };
         /* *INDENT-ON* */
+       
       }
 
       const auto zone = msg.at("zone").get<std::string>();
       const auto clean_it = dock_params->find(zone);
       if (clean_it == dock_params->end())
       {
+         std::cout << "                            3\n";
         /* *INDENT-OFF* */
         return {
           nullptr,
@@ -256,9 +260,13 @@ void add_clean(
       const auto& clean_info = clean_it->second;
       auto start_place = place_deser(clean_info.start);
       auto exit_place = place_deser(clean_info.finish);
+      std::cout << "START " << clean_info.start;
+      std::cout << "FINISH " << clean_info.finish;
+      std::cout << "                            4\n";
       if (!start_place.description.has_value()
         || !exit_place.description.has_value())
       {
+        std::cout << "                            5\n";
         auto errors = std::move(start_place.errors);
         errors.insert(
           errors.end(), exit_place.errors.begin(), exit_place.errors.end());
@@ -275,8 +283,10 @@ void add_clean(
         rmf_traffic::Time(rmf_traffic::Duration(0)),
         positions);
 
+      std::cout << "                            6\n";
       if (clean_path.size() < 2)
       {
+        std::cout << "                            7\n";
         /* *INDENT-OFF* */
         return {
           nullptr,
@@ -287,6 +297,7 @@ void add_clean(
         /* *INDENT-ON* */
       }
 
+      std::cout << "                            8\n";
       agv::FleetUpdateHandle::Confirmation confirm;
       (*consider)(msg, confirm);
       if (!confirm.is_accepted())
@@ -296,6 +307,7 @@ void add_clean(
 
       // TODO(MXG): Validate the type of cleaning (vacuum, mopping, etc)
       /* *INDENT-OFF* */
+      std::cout << "                            9\n";
       return {
         rmf_task::requests::Clean::Description::make(
           start_place.description->waypoint(),
@@ -305,8 +317,10 @@ void add_clean(
       };
       /* *INDENT-ON* */
     };
+  std::cout << "                            10\n";
   deserialization.task->add("clean", validate_clean_task, deserialize_clean);
-
+  
+  std::cout << "                            11\n";
   auto deserialize_clean_event =
     [deserialize_clean](const nlohmann::json& msg) -> agv::DeserializedEvent
     {
@@ -324,11 +338,13 @@ void add_clean(
       };
       /* *INDENT-ON* */
     };
+  std::cout << "                            12\n";  
   deserialization.event->add(
     "clean", validate_clean_event, deserialize_clean_event);
 
   CleanEvent::add(*activation.event);
 
+  std::cout << "                            13\n";
   auto clean_unfolder =
     [](const Clean::Description& clean)
     {
@@ -339,10 +355,12 @@ void add_clean(
       // TODO(MXG): Make the name and detail more detailed
       return *builder.build("Clean", "");
     };
-
+  
+  std::cout << "                            14\n";
   rmf_task_sequence::Task::unfold<rmf_task::requests::Clean::Description>(
     std::move(clean_unfolder), *activation.task,
     activation.phase, std::move(clock));
+  std::cout << "                            15\n";
 }
 
 } // namespace task

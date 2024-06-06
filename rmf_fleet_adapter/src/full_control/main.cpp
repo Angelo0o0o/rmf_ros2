@@ -18,6 +18,7 @@
 // Internal implementation-specific headers
 #include "../rmf_fleet_adapter/ParseArgs.hpp"
 #include "../rmf_fleet_adapter/load_param.hpp"
+#include <stdexcept>
 
 // Public rmf_fleet_adapter API headers
 #include <rmf_fleet_adapter/agv/Adapter.hpp>
@@ -256,10 +257,14 @@ public:
       }
 
       _current_path_request.path.emplace_back(std::move(location));
+       std::cout << "CURRENT PATH REQUEST: PATH X" << location.x << "\n";
+       std::cout << "CURRENT PATH REQUEST: PATH Y" << location.y << "\n";
+
     }
 
     _path_requested_time = std::chrono::steady_clock::now();
     _path_request_pub->publish(_current_path_request);
+    std::cout << "CURRENT PATH REQUEST: ROBOT" << _current_path_request.robot_name;
   }
 
   void stop() final
@@ -334,20 +339,29 @@ public:
     // lanes.
     _dock_target_wp = rmf_utils::nullopt;
     DockFinder finder(dock_name);
+    //MODIFIED HERE
+    size_t I = 0;
     for (std::size_t i = 0; i < _travel_info.graph->num_lanes(); ++i)
+    //for (std::size_t i = 0; i < _travel_info.graph->num_waypoints(); ++i)
     {
       const auto& lane = _travel_info.graph->get_lane(i);
       const auto entry_event = lane.entry().event();
+      //const auto& waypoint =  _travel_info.graph->get_waypoint(i);
       if (entry_event)
+      //if (!std::strcmp(waypoint.name()->c_str(),(dock_name + "start").c_str()))
       {
-        entry_event->execute(finder);
-        if (finder.is_dock)
-        {
-          _dock_target_wp = lane.entry().waypoint_index();
-          break;
-        }
+         entry_event->execute(finder);
+         if (finder.is_dock)
+         {
+           _dock_target_wp = lane.exit().waypoint_index();
+           break;
+         }
+        //_dock_target_wp = waypoint.index();
+        //break;
       }
+      I = i;
     }
+    //throw std::runtime_error(std::string("Failed: "));
 
     assert(_dock_target_wp);
 
@@ -357,10 +371,12 @@ public:
 
     RCLCPP_INFO(
       _node->get_logger(),
-      "Requesting robot [%s] of [%s] to dock into waypoint [%s]",
+      "Requesting robot [%s] of [%s] to dock into waypoint [%s]\n WAYPOINT = %d",
       _current_path_request.robot_name.c_str(),
       _current_path_request.fleet_name.c_str(),
-      wp_name.c_str());
+      wp_name.c_str(),
+      wp.index());
+      //throw std::runtime_error(std::string("Failed: "));
   }
 
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
@@ -369,7 +385,8 @@ public:
     _last_known_state = state;
 
     // Update battery soc
-    const double battery_soc = state.battery_percent / 100.0;
+    //const double battery_soc = state.battery_percent / 100.0;
+    const double battery_soc = 1.0;
     if (battery_soc >= 0.0 && battery_soc <= 1.0)
     {
       _travel_info.updater->update_battery_soc(battery_soc);
@@ -497,11 +514,13 @@ public:
           _dock_schedule_time = now;
         }
       }
+      //throw std::runtime_error(std::string("Failed: "));
     }
     else
     {
       // If we don't have a finishing callback, then the robot is not under our
       // command
+      //throw std::runtime_error(std::string("Failed: "));
       estimate_state(_node, state.location, _travel_info);
     }
   }
@@ -966,6 +985,7 @@ std::shared_ptr<Connections> make_fleet(
   const std::string fleet_name_param_name = "fleet_name";
   const std::string fleet_name = node->declare_parameter(
     "fleet_name", std::string());
+   RCLCPP_INFO(node->get_logger(),"FLEET NAME: %s", fleet_name.c_str());  
   if (fleet_name.empty())
   {
     RCLCPP_ERROR(
@@ -1338,6 +1358,8 @@ std::shared_ptr<Connections> make_fleet(
       confirm.accept();
     };
 
+  //MODIFIED HERE
+  //connections->fleet->add_standard_tasks();
   // Configure this fleet to perform any kind of teleop action
   connections->fleet->add_performable_action(
     "teleop",
@@ -1416,7 +1438,8 @@ int main(int argc, char* argv[])
   const auto adapter = rmf_fleet_adapter::agv::Adapter::make("fleet_adapter");
   if (!adapter)
     return 1;
-
+  
+  //RCLCPP_INFO(adapter->node()->get_logger(), "HERE");
   const auto fleet_connections = make_fleet(adapter);
   if (!fleet_connections)
     return 1;

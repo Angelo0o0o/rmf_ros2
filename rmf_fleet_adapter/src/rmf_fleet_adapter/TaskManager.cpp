@@ -175,6 +175,7 @@ TaskManagerPtr TaskManager::make(
       }
     });
 
+
   mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
     std::chrono::seconds(10),
     [w = mgr->weak_from_this()]()
@@ -184,6 +185,7 @@ TaskManagerPtr TaskManager::make(
         mgr->retreat_to_charger();
       }
     });
+
 
   mgr->_begin_waiting();
 
@@ -1653,8 +1655,12 @@ void TaskManager::retreat_to_charger()
     RCLCPP_WARN(
       _context->node()->get_logger(),
       "Robot [%s] needs to be charged but has insufficient battery remaining "
-      "to retreat to its designated charger.",
-      _context->name().c_str());
+      "to retreat to its designated charger.\n" 
+      "CURRENT_BATTERY_SOC = %f\n"
+      "BATTERY_SOC_AFTER_RETREAT = %f\n"
+      "REATREAT_THRESHOLD = %f\n"
+      "THRESHOLD_SOC = %f\n",
+      current_battery_soc, battery_soc_after_retreat, retreat_threshold, threshold_soc, _context->name().c_str());
   }
 }
 

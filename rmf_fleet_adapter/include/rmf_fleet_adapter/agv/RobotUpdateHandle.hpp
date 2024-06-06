@@ -89,8 +89,8 @@ public:
   void update_position(
     const std::string& map_name,
     const Eigen::Vector3d& position,
-    const double max_merge_waypoint_distance = 0.1,
-    const double max_merge_lane_distance = 1.0,
+    const double max_merge_waypoint_distance = 10.0,
+    const double max_merge_lane_distance = 20.0,
     const double min_lane_length = 1e-8);
 
   /// Update the current position of the robot by specifying a plan start set
