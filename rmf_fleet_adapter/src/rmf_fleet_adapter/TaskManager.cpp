@@ -1265,6 +1265,7 @@ bool TaskManager::kill_task(
 //==============================================================================
 void TaskManager::_begin_next_task()
 {
+  //std::cout << _active_task ;
   if (_active_task)
     return;
 
